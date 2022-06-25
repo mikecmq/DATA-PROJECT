@@ -1,0 +1,214 @@
+---
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+---
+title: "Big Data Final project"
+author: Maoqiang chen
+date: "24/06/2022"
+output: html_document
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+
+#1 improt and Check the datatypes of the attributes,change character to numeric .
+
+```{r}
+eshop<-read.csv("C:\\Users\\Mike.Chen\\Desktop\\e-shop clothing 2008.csv",header = TRUE, sep = ";")
+eshop$page.2..clothing.model.<-gsub("A","1",eshop$page.2..clothing.model.)
+eshop$page.2..clothing.model.<-gsub("B","2",eshop$page.2..clothing.model.)
+eshop$page.2..clothing.model.<-gsub("C","3",eshop$page.2..clothing.model.)
+eshop$page.2..clothing.model.<-gsub("P","4",eshop$page.2..clothing.model.)
+eshop$page.2..clothing.model.<-as.numeric(eshop$page.2..clothing.model.)
+str(eshop)
+summary(eshop)
+
+```
+#2 Are there any missing values in the dataset? 
+```{r}
+x<-which(is.na(eshop))
+sum(x)
+# There is no missing data.
+```
+#3 attributes distribution
+
+```{r}
+hist(eshop$month)
+hist(eshop$day)
+hist(eshop$order)
+hist(eshop$country)
+hist(eshop$session.ID)
+hist(eshop$page.1..main.category.)
+hist(eshop$page.2..clothing.model.)
+hist(eshop$colour)
+hist(eshop$location)
+hist(eshop$model.photography)
+hist(eshop$price)
+hist(eshop$price.2)
+hist(eshop$page)
+```
+#4 attributes outlier
+```{r}
+boxplot(eshop$month)
+boxplot(eshop$day)
+boxplot(eshop$order)
+boxplot(eshop$country)
+boxplot(eshop$session.ID)
+boxplot(eshop$page.1..main.category.)
+boxplot(eshop$page.2..clothing.model.)
+boxplot(eshop$colour)
+boxplot(eshop$location)
+boxplot(eshop$model.photography)
+boxplot(eshop$price)
+boxplot(eshop$price.2)
+boxplot(eshop$page)
+```
+
+#5 attributes plot
+```{r}
+plot(eshop$month,eshop$order)
+plot(eshop$day,eshop$order)
+plot(eshop$country,eshop$order)
+plot(eshop$session.ID,eshop$order)
+plot(eshop$page.1..main.category.,eshop$order)
+plot(eshop$page.2..clothing.model.,eshop$order)
+plot(eshop$colour,eshop$order)
+plot(eshop$location,eshop$order)
+plot(eshop$model.photography,eshop$order)
+plot(eshop$price,eshop$order)
+plot(eshop$price.2,eshop$order)
+plot(eshop$page,eshop$order)
+```
+
+#6 pairs  between the attributes 
+
+```{r}
+#pairs(eshop)
+```
+#7 cor
+```{r}
+options(repos = list(CRAN="http://cran.rstudio.com/"))
+install.packages("corrplot")
+library(corrplot)
+M<-cor(eshop[-1])
+corrplot(M, method = 'number')
+
+```
+#8 split data into train/test
+```{r}
+t = sample(nrow(eshop), floor(0.7 * nrow(eshop)))
+train = eshop[t,]
+test = eshop[-t,]
+str(train)
+str(test)
+
+```
+
+#9 model1:multiple regression 
+
+```{r}
+library(caret)
+model1<-lm(order~month+day+country+session.ID+page.1..main.category.+page.2..clothing.model.+colour+location+model.photography+price+price.2+page,data=train)
+model1
+
+model1prediction <- predict(model1, interval="prediction",newdata =test)
+
+#RMSE
+rmse1<-RMSE(model1prediction, test$order)
+rmse1
+
+#R-square
+model1R2<-R2(model1prediction, test$order)
+model1R2
+
+#MAE
+library(caret)
+model1MAE = MAE(model1prediction, test$order)
+model1MAE
+
+#AIC-the less, the better
+install.packages("AICcmodavg")
+library(AICcmodavg)
+model1AIC<-AIC(model1,k=2)
+model1AIC
+
+#Error
+errors1 <- model1prediction - test$order
+hist(errors1)
+
+```
+#10 model2: Regression tree
+
+```{r}
+install.packages("rpart.plot")
+library(rpart)
+library(rpart.plot)
+
+model2<-rpart(order~month+day+country+session.ID+page.1..main.category.+page.2..clothing.model.+colour+location+model.photography+price+price.2+page,data=train,control=rpart.control(cp=.0001))
+summary(model2)
+printcp(model2)
+best <- model2$cptable[which.min(model2$cptable[,"xerror"]),"CP"]
+prunemodel2<-prune(model2,cp=best)
+prp(prunemodel2,
+    faclen=0, #use full names for factor labels
+    extra=1, #display number of obs. for each terminal node
+    roundint=F, #don't round to integers in output
+    digits=5) #display 5 decimal places in output
+
+model2prediction <- predict(model2, interval="prediction",newdata =test)
+
+#RMSE
+rmse2<-RMSE(model2prediction, test$order)
+rmse2
+
+#MAE
+library(caret)
+model2MAE = MAE(model2prediction, test$order)
+model2MAE
+
+#R-square
+model2R2<-R2(model2prediction, test$order)
+model2R2
+
+#Error
+errors2 <- model2prediction - test$order
+hist(errors2)
+
+```
+#11 KNN regression
+```{r}
+
+install.packages("lazyeval")
+install.packages("colorspace")
+library(ggplot2)
+install.packages('dplyr')
+library(dplyr)
+install.packages("digest")
+library(caret)
+
+model3<-knnreg(order~month+day+country+session.ID+page.1..main.category.+page.2..clothing.model.+colour+location+model.photography+price+price.2+page,data=train)
+model3prediction <- predict(model3, interval="prediction",newdata =test)
+
+#RMSE
+rmse3<-RMSE(model3prediction, test$order)
+rmse3
+
+#MAE
+library(caret)
+model3MAE = MAE(model3prediction, test$order)
+model3MAE
+
+#R-square
+model3R2<-R2(model3prediction, test$order)
+model3R2
+
+#Error
+errors3 <- model3prediction - test$order
+hist(errors3)
+
+```
